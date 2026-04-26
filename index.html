@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistem Pakar — Diagnosa Kerusakan Tanah</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0f0a;
+      --surface: #111811;
+      --surface2: #1a231a;
+      --border: #2a3d2a;
+      --text: #dff0df;
+      --text-muted: #6b8f6b;
+      --accent: #7ec850;
+      --warn: #e3b341;
+      --danger: #f85149;
+      --info: #58a6ff;
+      --brown: #c9954a;
+    }
+
+    body {
+      font-family: 'Syne', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .noise {
+      position: fixed; inset: 0; pointer-events: none; opacity: 0.04; z-index: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      position: relative; z-index: 1;
+    }
+
+    header {
+      margin-bottom: 2.5rem;
+      border-left: 3px solid var(--accent);
+      padding-left: 1.25rem;
+    }
+
+    .tag {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-size: clamp(1.5rem, 4vw, 2.2rem);
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 0.5rem;
+    }
+
+    header p { color: var(--text-muted); font-size: 14px; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+
+    @media (max-width: 680px) { .layout { grid-template-columns: 1fr; } }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+
+    .panel-title {
+      font-size: 11px;
+      font-family: 'Space Mono', monospace;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 1rem;
+    }
+
+    .gejala-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 460px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .gejala-list::-webkit-scrollbar { width: 4px; }
+    .gejala-list::-webkit-scrollbar-track { background: var(--surface2); border-radius: 2px; }
+    .gejala-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .gejala-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      user-select: none;
+    }
+
+    .gejala-item:hover { background: var(--surface2); }
+
+    .gejala-item.active {
+      background: rgba(126,200,80,0.08);
+      border-color: var(--accent);
+    }
+
+    .checkbox {
+      width: 16px; height: 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 3px;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, border-color 0.15s;
+      font-size: 10px;
+    }
+
+    .gejala-item.active .checkbox {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #0a0f0a;
+    }
+
+    .gejala-text { font-size: 13px; line-height: 1.3; }
+    .gejala-code {
+      margin-left: auto;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 1rem;
+    }
+
+    button {
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      padding: 10px 16px;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+
+    button:active { transform: scale(0.97); }
+
+    .btn-primary {
+      flex: 1;
+      background: var(--accent);
+      color: #0a0f0a;
+    }
+
+    .btn-primary:hover { opacity: 0.85; }
+
+    .btn-reset {
+      background: var(--surface2);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    .btn-reset:hover { color: var(--text); }
+
+    .selected-count {
+      font-size: 11px;
+      font-family: 'Space Mono', monospace;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+
+    .selected-count span { color: var(--accent); }
+
+    /* Result area */
+    .result-area { display: none; }
+
+    .diagnosa-utama {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+
+    .diagnosa-utama::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--result-color, var(--accent));
+    }
+
+    .diagnosa-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 1rem;
+    }
+
+    .diagnosa-icon {
+      width: 52px; height: 52px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+
+    .diagnosa-nama {
+      font-size: clamp(1rem, 2.5vw, 1.35rem);
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 3px;
+    }
+
+    .diagnosa-match {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .urgency-badge {
+      margin-left: auto;
+      font-size: 11px;
+      font-family: 'Space Mono', monospace;
+      padding: 4px 10px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 1rem;
+    }
+
+    .info-box {
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .info-box-label {
+      font-size: 10px;
+      font-family: 'Space Mono', monospace;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 5px;
+    }
+
+    .info-box-val { font-size: 13px; line-height: 1.4; }
+
+    .rekomendasi-list {
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .rekomendasi-list .info-box-label { margin-bottom: 8px; }
+
+    .rek-item {
+      display: flex;
+      gap: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      padding: 4px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .rek-item:last-child { border-bottom: none; }
+
+    .rek-num {
+      color: var(--accent);
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .kemungkinan-lain {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+
+    .rank-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .rank-item:last-child { border-bottom: none; }
+
+    .rank-num {
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      color: var(--text-muted);
+      width: 20px;
+      flex-shrink: 0;
+    }
+
+    .rank-nama { font-size: 13px; flex: 1; }
+
+    .rank-bar-wrap {
+      width: 80px;
+      height: 4px;
+      background: var(--surface2);
+      border-radius: 2px;
+    }
+
+    .rank-bar { height: 100%; border-radius: 2px; background: var(--accent); transition: width 0.4s; }
+    .rank-pct {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      width: 38px;
+      text-align: right;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 2.5rem 1rem;
+      color: var(--text-muted);
+    }
+
+    .empty-state .icon { font-size: 36px; margin-bottom: 10px; }
+    .empty-state p { font-size: 13px; }
+
+    footer {
+      text-align: center;
+      font-size: 11px;
+      font-family: 'Space Mono', monospace;
+      color: var(--text-muted);
+      padding-top: 1.5rem;
+      margin-top: 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+  <div class="noise"></div>
+  <div class="container">
+    <header>
+      <p class="tag">Praktikum KB · Sistem Pakar</p>
+      <h1>Diagnosa Kerusakan<br>Tanah Pertanian</h1>
+      <p>Pilih ciri-ciri kondisi tanah yang ditemukan, lalu klik Diagnosa untuk melihat hasil analisis.</p>
+    </header>
+
+    <div class="layout">
+      <!-- Panel kiri: input gejala -->
+      <div>
+        <div class="panel">
+          <div class="panel-title">Ciri Kondisi Tanah</div>
+          <div class="gejala-list" id="gejala-list"></div>
+          <div class="selected-count">Dipilih: <span id="count">0</span> gejala</div>
+          <div class="btn-row">
+            <button class="btn-primary" onclick="diagnosa()">Diagnosa ↗</button>
+            <button class="btn-reset" onclick="resetForm()">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel kanan: hasil -->
+      <div id="right-panel">
+        <div class="panel" id="placeholder">
+          <div class="empty-state">
+            <div class="icon">🌱</div>
+            <p>Pilih gejala di sebelah kiri lalu klik <strong>Diagnosa</strong> untuk melihat hasil analisis kerusakan tanah.</p>
+          </div>
+        </div>
+
+        <div class="result-area" id="result-area">
+          <div class="diagnosa-utama" id="diagnosa-utama">
+            <div class="diagnosa-header">
+              <div class="diagnosa-icon" id="d-icon"></div>
+              <div style="flex:1">
+                <div class="diagnosa-nama" id="d-nama"></div>
+                <div class="diagnosa-match" id="d-match"></div>
+              </div>
+              <div class="urgency-badge" id="d-urgensi"></div>
+            </div>
+            <div class="info-grid">
+              <div class="info-box" style="grid-column:1/-1">
+                <div class="info-box-label">Penyebab Umum</div>
+                <div class="info-box-val" id="d-penyebab"></div>
+              </div>
+              <div class="info-box">
+                <div class="info-box-label">Gejala Cocok</div>
+                <div class="info-box-val" id="d-cocok"></div>
+              </div>
+              <div class="info-box">
+                <div class="info-box-label">Gejala Kurang</div>
+                <div class="info-box-val" id="d-kurang"></div>
+              </div>
+            </div>
+            <div class="rekomendasi-list">
+              <div class="info-box-label">Rekomendasi Penanganan</div>
+              <div id="d-rekomendasi"></div>
+            </div>
+          </div>
+
+          <div class="kemungkinan-lain" id="kemungkinan-lain">
+            <div class="panel-title">Ranking Semua Kemungkinan</div>
+            <div id="ranking-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      Sistem Pakar Forward Chaining · Praktikum Kecerdasan Buatan · Metode: Pencocokan Gejala + Persentase Kecocokan
+    </footer>
+  </div>
+
+  <script>
+    const GEJALA = {
+      G01: 'Tanah retak-retak di permukaan',
+      G02: 'Tanaman layu meski sudah disiram',
+      G03: 'Lapisan atas tanah tipis atau menipis',
+      G04: 'Air cepat mengalir saat hujan deras',
+      G05: 'Permukaan tanah keras dan padat',
+      G06: 'Tanah berpasir, mudah hancur',
+      G07: 'Ada genangan air yang lama',
+      G08: 'Warna tanah pucat atau keputihan',
+      G09: 'Akar tanaman dangkal, tidak menembus dalam',
+      G10: 'Tanaman tumbuh kerdil dan pucat',
+      G11: 'Tanah berbau busuk atau asam',
+      G12: 'Tanah terasa berat dan lengket saat basah',
+      G13: 'Muncul bercak putih/kristal di permukaan',
+      G14: 'Pertumbuhan gulma meningkat pesat',
+      G15: 'Tanah mudah longsor atau terkikis hujan',
+      G16: 'Air tanah terasa asin atau pahit',
+      G17: 'Tanaman menguning dari daun bawah ke atas',
+      G18: 'Bekas penggunaan pupuk kimia berlebih',
+      G19: 'Aktivitas cacing tanah berkurang drastis',
+      G20: 'Tanah tidak menyerap air (air menggenang di atas)',
+    };
+
+    const PENYAKIT = [
+      {
+        nama: 'Erosi Tanah',
+        icon: '🌊', color: '#58a6ff',
+        gejala: ['G03','G04','G06','G15','G14'],
+        penyebab: 'Curah hujan tinggi, lereng curam, kurangnya vegetasi penutup tanah, pengolahan tanah berlebih.',
+        rekomendasi: [
+          'Tanam tanaman penutup tanah (cover crop) untuk menahan erosi',
+          'Buat teras atau terasering di lahan miring',
+          'Pasang pematang/guludan mengikuti kontur lahan',
+          'Hindari membiarkan lahan terbuka di musim hujan',
+        ],
+        urgensi: 'SEGERA', urgensi_color: '#f85149',
+      },
+      {
+        nama: 'Kekeringan / Degradasi Kelembaban',
+        icon: '🏜️', color: '#e3b341',
+        gejala: ['G01','G02','G06','G08','G10'],
+        penyebab: 'Curah hujan rendah berkepanjangan, drainase buruk, kandungan bahan organik rendah.',
+        rekomendasi: [
+          'Tambahkan mulsa organik (jerami/daun) untuk menahan kelembaban',
+          'Lakukan penyiraman di pagi dan sore hari secara terjadwal',
+          'Tambah bahan organik (kompos) untuk memperbaiki kapasitas simpan air',
+          'Gunakan irigasi tetes untuk efisiensi air',
+        ],
+        urgensi: 'SEGERA', urgensi_color: '#f85149',
+      },
+      {
+        nama: 'Pemadatan Tanah (Soil Compaction)',
+        icon: '🪨', color: '#8b949e',
+        gejala: ['G05','G09','G12','G20','G07'],
+        penyebab: 'Penggunaan alat berat berulang, pengolahan tanah saat basah, minimnya bahan organik.',
+        rekomendasi: [
+          'Lakukan penggemburan tanah (subsoiling) secara berkala',
+          'Tambahkan bahan organik untuk memperbaiki struktur tanah',
+          'Hindari pengolahan tanah saat kondisi terlalu basah',
+          'Rotasi tanaman dengan tanaman berakar dalam',
+        ],
+        urgensi: 'TERJADWAL', urgensi_color: '#e3b341',
+      },
+      {
+        nama: 'Salinitas Tinggi',
+        icon: '🧂', color: '#c9954a',
+        gejala: ['G13','G16','G08','G10','G17'],
+        penyebab: 'Irigasi air asin, penggunaan pupuk kimia berlebih, evaporasi tinggi, drainase buruk.',
+        rekomendasi: [
+          'Lakukan pencucian tanah (leaching) dengan air bersih berlimpah',
+          'Perbaiki sistem drainase lahan',
+          'Gunakan tanaman toleran salinitas sebagai peralihan',
+          'Kurangi atau hentikan pupuk berbasis garam',
+        ],
+        urgensi: 'SEGERA', urgensi_color: '#f85149',
+      },
+      {
+        nama: 'Pencemaran Kimia',
+        icon: '☣️', color: '#f0883e',
+        gejala: ['G18','G11','G19','G10','G17'],
+        penyebab: 'Penggunaan pestisida/pupuk kimia berlebih, limbah industri, residu herbisida.',
+        rekomendasi: [
+          'Hentikan penggunaan bahan kimia penyebab kontaminasi',
+          'Tambahkan bahan organik untuk menetralisir bahan kimia',
+          'Lakukan remediasi dengan tanaman fitoremediasi (bunga matahari, kenaf)',
+          'Konsultasikan dengan dinas pertanian setempat untuk uji tanah',
+        ],
+        urgensi: 'KRITIS', urgensi_color: '#f85149',
+      },
+      {
+        nama: 'Tanah Masam Berlebih',
+        icon: '⚗️', color: '#7ec850',
+        gejala: ['G11','G17','G10','G14','G19'],
+        penyebab: 'Curah hujan tinggi (mencuci basa), penggunaan pupuk nitrogen berlebih, dekomposisi bahan organik.',
+        rekomendasi: [
+          'Aplikasikan kapur pertanian (dolomit/kalsit) sesuai dosis uji tanah',
+          'Kurangi penggunaan pupuk nitrogen jenis sulfat/klorida',
+          'Tambahkan abu sekam atau abu kayu sebagai penyeimbang pH',
+          'Lakukan uji pH tanah secara rutin',
+        ],
+        urgensi: 'TERJADWAL', urgensi_color: '#e3b341',
+      },
+    ];
+
+    const checks = {};
+    const listEl = document.getElementById('gejala-list');
+
+    Object.entries(GEJALA).forEach(([k, v]) => {
+      checks[k] = false;
+      const item = document.createElement('div');
+      item.className = 'gejala-item';
+      item.dataset.key = k;
+      item.innerHTML = `
+        <div class="checkbox" id="cb-${k}"></div>
+        <span class="gejala-text">${v}</span>
+        <span class="gejala-code">${k}</span>
+      `;
+      item.addEventListener('click', () => {
+        checks[k] = !checks[k];
+        item.classList.toggle('active', checks[k]);
+        document.getElementById('cb-' + k).textContent = checks[k] ? '✓' : '';
+        updateCount();
+      });
+      listEl.appendChild(item);
+    });
+
+    function updateCount() {
+      const n = Object.values(checks).filter(Boolean).length;
+      document.getElementById('count').textContent = n;
+    }
+
+    function diagnosa() {
+      const selected = Object.keys(checks).filter(k => checks[k]);
+      if (selected.length === 0) {
+        alert('Pilih minimal satu ciri kondisi tanah terlebih dahulu.');
+        return;
+      }
+
+      const selectedSet = new Set(selected);
+      const results = PENYAKIT.map(p => {
+        const cocok = p.gejala.filter(g => selectedSet.has(g));
+        const kurang = p.gejala.filter(g => !selectedSet.has(g));
+        return { ...p, skor: cocok.length, persen: Math.round((cocok.length / p.gejala.length) * 100), cocok, kurang };
+      }).filter(r => r.skor > 0).sort((a, b) => b.persen - a.persen || b.skor - a.skor);
+
+      if (results.length === 0) {
+        alert('Tidak ditemukan kerusakan tanah yang cocok dengan ciri yang dipilih.');
+        return;
+      }
+
+      const top = results[0];
+      document.getElementById('placeholder').style.display = 'none';
+      document.getElementById('result-area').style.display = 'block';
+
+      document.getElementById('d-icon').textContent = top.icon;
+      document.getElementById('d-icon').style.background = top.color + '22';
+      document.getElementById('d-nama').textContent = top.nama;
+      document.getElementById('d-nama').style.color = top.color;
+      document.getElementById('d-match').textContent = `${top.skor} dari ${top.gejala.length} gejala cocok (${top.persen}%)`;
+      document.getElementById('d-penyebab').textContent = top.penyebab;
+
+      document.getElementById('d-urgensi').textContent = top.urgensi;
+      document.getElementById('d-urgensi').style.background = top.urgensi_color + '22';
+      document.getElementById('d-urgensi').style.color = top.urgensi_color;
+
+      document.getElementById('d-cocok').innerHTML = top.cocok.length > 0
+        ? top.cocok.map(g => `<div style="font-size:11px;color:#7ec850;margin-bottom:2px">✓ ${GEJALA[g]}</div>`).join('')
+        : '<span style="color:var(--text-muted)">—</span>';
+
+      document.getElementById('d-kurang').innerHTML = top.kurang.length > 0
+        ? top.kurang.map(g => `<div style="font-size:11px;color:var(--text-muted);margin-bottom:2px">— ${GEJALA[g]}</div>`).join('')
+        : '<span style="color:#7ec850">Semua gejala terpenuhi ✓</span>';
+
+      document.getElementById('d-rekomendasi').innerHTML = top.rekomendasi
+        .map((r, i) => `<div class="rek-item"><span class="rek-num">${i+1}.</span><span>${r}</span></div>`).join('');
+
+      document.getElementById('diagnosa-utama').style.setProperty('--result-color', top.color);
+
+      // Ranking
+      const rankEl = document.getElementById('ranking-list');
+      rankEl.innerHTML = results.map((r, i) => `
+        <div class="rank-item">
+          <span class="rank-num">${i+1}.</span>
+          <span class="rank-nama">${r.icon} ${r.nama}</span>
+          <div class="rank-bar-wrap"><div class="rank-bar" style="width:${r.persen}%;background:${r.color}"></div></div>
+          <span class="rank-pct">${r.persen}%</span>
+        </div>
+      `).join('');
+
+      document.getElementById('kemungkinan-lain').style.display = results.length > 1 ? 'block' : 'none';
+    }
+
+    function resetForm() {
+      Object.keys(checks).forEach(k => {
+        checks[k] = false;
+        const item = document.querySelector(`[data-key="${k}"]`);
+        if (item) item.classList.remove('active');
+        const cb = document.getElementById('cb-' + k);
+        if (cb) cb.textContent = '';
+      });
+      updateCount();
+      document.getElementById('placeholder').style.display = 'block';
+      document.getElementById('result-area').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
